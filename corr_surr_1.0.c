@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <time.h>
 #include <float.h>
@@ -12,14 +13,25 @@
 //*******************************************************************************************************************************************************
 
 
-int main(){
-  int i,j,k,l,T,n,cnt,nodo,numnodos,numsur,nbin = 128,dim,dim2,index,delay,**delaynodes,four=1;
+int main(int argc, char *argv[]){
+  int i,j,k,l,T,n,cnt,nodo,numnodos,numsur,nbin = 128,dim,dim2,index,delay,**delaynodes,four=1,size;
   float *s,**phase_node,*phase_surr,*correltime,**correlnodes,**correlsurr,*correlsurrtime,hist[nbin],*correllow,*correlhigh,aux,*autocorr,pi,maxx,minn,dx,prob,*threshold;
   FILE *fp;
-  char *line,*variables;
+  char *line,*variables,*filename;
   size_t line_size=1024;
   fftw_complex *data1,*data2,*hlbrt1;
   fftw_plan pf,pb;
+
+  if (argc==2){
+    size = strlen(argv[1]);
+    filename = (char *) malloc(size * sizeof(char));
+    strcpy(filename, argv[1]);
+    printf("%s\n",filename);
+  }
+  else{
+    printf("Usage: ./<executable_filename>.out <input_filename>");
+    strcpy(filename, "out.csv");
+  }
 
   pi = acos(-1.);
   
@@ -28,7 +40,7 @@ int main(){
 
   //*********************** READING DATA PARAMETERS ********************************************
   
-  fp=fopen("out.csv","r");
+  fp=fopen(filename,"r");
   if (getline(&line, &line_size, fp) != -1){ //# channels = 67, surrogates = 100, lenght = 500
     if(line[0] == '#'){
       variables = strtok(line," \t");
@@ -65,7 +77,7 @@ int main(){
   correlsurr = (float **) malloc(numnodos * sizeof(float*));
   for (i=0;i<numnodos;i++) correlsurr[i] = (float *) malloc(numsur * sizeof(float));
   dim2 = dim+1;
-  correlsurrtime = (fftw_complex *) malloc(dim2 * sizeof(fftw_complex));
+  correlsurrtime = (float *) malloc(dim2 * sizeof(float));
   threshold = (float *) malloc(numnodos * sizeof(float));
   correltime = (float *) malloc(dim2 * sizeof(float));
   correlnodes = (float **) malloc(numnodos * sizeof(float *));
@@ -337,6 +349,14 @@ int main(){
   for (i=0;i<numnodos;i++){
     for (j=0;j<numnodos;j++)      fprintf(fp,"%i\t%i\t%f\n",i,j,correlnodes[i][j]);
     fprintf(fp,"\n");
+  }
+  fclose(fp);
+
+  // print associated pairs
+  fp = fopen("association_nodes_old.dat","w");
+  for (i=0;i<numnodos;i++){
+    for (j=0;j<numnodos;j++)
+      if(correlnodes[i][j] != 0) fprintf(fp,"%i\t%i\n",i,j);
   }
   fclose(fp);
 

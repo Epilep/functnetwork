@@ -1,8 +1,11 @@
 //Compile linking with fftw3:
 // gcc <NAMEOFFILE>.c -lfftw3 -lm
+//Execute:
+// ./<NAMEOFFILE>.out filename
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <time.h>
 #include <float.h>
@@ -12,14 +15,29 @@
 //*******************************************************************************************************************************************************
 
 
-int main(){
-  int i,j,k,l,T,n,cnt,nodo,numnodos,numsur,nbin = 128,dim,dim2,index,delay,**delaynodes,four=1;
-  float *s,**phase_node,***phase_surr,*correltime,**correlnodes,*correlsurr,*correlsurrtime,hist[nbin],*correllow,*correlhigh,aux,*autocorr,pi,maxx,minn,dx,prob,threshold;
+int main(int argc, char *argv[]){
+  int i,j,k,l,T,n,cnt,nodo,numnodos,numsur,nbin = 128,dim,dim2,index,delay,**delaynodes,four=1,size;
+  float *s,**phase_node,***phase_surr,*correltime,**correlnodes,*correlsurr,*correlsurrtime,hist[nbin],*correllow,*correlhigh,aux,*autocorr,pi,maxx,minn,dx,prob,threshold,threshold2;
   FILE *fp;
-  char *line,*variables;
+  char *line,*variables,*filename;
   size_t line_size=1024;
   fftw_complex *data1,*data2,*hlbrt1;
   fftw_plan pf,pb;
+
+  //***********
+
+  if (argc==2){
+    size = strlen(argv[1]);
+    filename = (char *) malloc(size * sizeof(char));
+    strcpy(filename, argv[1]);
+    printf("%s\n",filename);
+  }
+  else{
+    printf("Usage: ./<executable_filename>.out <input_filename>");
+    strcpy(filename, "out.csv");
+  }
+  
+  //**********
 
   pi = acos(-1.);
   
@@ -28,7 +46,7 @@ int main(){
 
   //*********************** READING DATA PARAMETERS ********************************************
   
-  fp=fopen("out.csv","r");
+  fp=fopen(filename,"r");
   if (getline(&line, &line_size, fp) != -1){ //# channels = 67, surrogates = 100, lenght = 500
     if(line[0] == '#'){
       variables = strtok(line," \t");
@@ -54,7 +72,6 @@ int main(){
     }
   }
 
-  getchar();
   //********************** MEMORY ALLOCATIONS ****************************************************
   
   dim = n;
@@ -69,7 +86,7 @@ int main(){
   }
   correlsurr = (float *) malloc(numsur * sizeof(float));
   dim2 = dim+1;
-  correlsurrtime = (fftw_complex *) malloc(dim2 * sizeof(fftw_complex));
+  correlsurrtime = (float *) malloc(dim2 * sizeof(float));
   correltime = (float *) malloc(dim2 * sizeof(float));
   correlnodes = (float **) malloc(numnodos * sizeof(float *));
   for (i=0;i<numnodos;i++) correlnodes[i] = (float *) malloc(numnodos * sizeof(float));
@@ -186,11 +203,12 @@ int main(){
   
   //Computation of phase correlations
   index = floor(dim/2);
-  for (i=0;i<numnodos;i++){
+  for (i=0;i<numnodos-1;i++){
     //    for (k=i+1;k<numnodos;k++){
-    for (k=0;k<numnodos;k++){
+    for (k=i+1;k<numnodos;k++){
       // computes phase correlation between node "i" and surrogate "cnt-1" of node "k" for different delays -dim/2 < delay < dim/2
       for (cnt=0;cnt<numsur;cnt++){
+	printf("Correlation %i\t%i\t%i\n",i,k,cnt);
 	for (delay=0;delay<=dim;delay++)    correlsurrtime[delay] = 0.+0.*I;
       
 	// Use equation (14) Schmidt, Petkov, Richardson, Terry, "Dynamics on networks:..." for delay >= 0
@@ -246,69 +264,68 @@ int main(){
       }
       else threshold = l*dx;
 
-      /* //\************** */
-
-      /* //Computation of phase correlations */
-      /* // computes phase correlation between node "k" and surrogate "cnt-1" of node "i" for different delays -dim/2 < delay < dim/2 */
-      /* for (cnt=0;cnt<numsur;cnt++){ */
-      /* 	for (delay=0;delay<=dim;delay++)    correlsurrtime[delay] = 0.+0.*I; */
-	    
-      /* 	    // Use equation (14) Schmidt, Petkov, Richardson, Terry, "Dynamics on networks:..." for delay >= 0 */
-      /* 	    for (delay=0;delay<=index;delay++){ */
-      /* 	      for (j=0;j<dim-delay;j++){ */
-      /* 		correlsurrtime[delay+index] += cos(phase_node[k][j+delay]-phase_surr[i][cnt][j])+I*sin(phase_node[k][j+delay]-phase_surr[i][cnt][j]); */
-      /* 	      } */
-      /* 	      correlsurrtime[delay+index]/=(float)(dim-delay); */
-      /* 	      correlsurrtime[delay+index] = sqrt(creal(correlsurrtime[delay+index])*creal(correlsurrtime[delay+index])+cimag(correlsurrtime[delay+index])*cimag(correlsurrtime[delay+index])); */
-      /* 	    } */
-      /* 	    // Use equation (14) Schmidt, Petkov, Richardson, Terry, "Dynamics on networks:..." for delay < 0 */
-      /* 	    for (delay=-index;delay<0;delay++){ */
-      /* 	      for (j=abs(delay);j<dim;j++){ */
-      /* 		correlsurrtime[delay+index] += cos(phase_node[k][j+delay]-phase_surr[i][cnt][j])+I*sin(phase_node[k][j+delay]-phase_surr[i][cnt][j]); */
-      /* 	      } */
-      /* 	      correlsurrtime[delay+index]/=(float)(dim-abs(delay)); */
-      /* 	      correlsurrtime[delay+index] = sqrt(creal(correlsurrtime[delay+index])*creal(correlsurrtime[delay+index])+cimag(correlsurrtime[delay+index])*cimag(correlsurrtime[delay+index])); */
-      /* 	    } */
-	    
-      /* 	    // maximize correlsurrtime over delay:: the maximum correlation will be assigned as correlsur */
-      /* 	    correlsurr[cnt] = correlsurrtime[0]; */
-      /* 	    for (delay=1;delay<=dim;delay++){ */
-      /* 	      if (correlsurrtime[delay] > correlsurr[cnt])    correlsurr[cnt] = correlsurrtime[delay]; */
-      /* 	    } */
-      /* 	  } */
-	  
-      /* 	  // Compute histogram of correlations between node "i" and surrogates of node "k" */
-      /* 	  for (l=0;l<nbin;l++) hist[l] = 0.; */
-      /* 	  maxx = correlsurr[0]; */
-      /* 	  minn = correlsurr[0]; */
-      /* 	  for (l=1;l<numsur;l++){ */
-      /* 	    if (correlsurr[l] > maxx)   maxx = correlsurr[l]; */
-      /* 	    if (correlsurr[l] < minn)   minn = correlsurr[l]; */
-      /* 	  } */
-      /* 	  dx = (float)((maxx-minn)/nbin); */
-      /* 	  for (l=0;l<numsur;l++){ */
-      /* 	    j = floor((correlsurr[l]-minn)/dx); */
-      /* 	    hist[j] += (float)(1./numsur/dx); */
-      /* 	  } */
-	  
-      /* 	  // We compute threshold by computing the integral of hist until a bin just below 0.95, then do a linear regression to find intermediate point (correlatoin threshold) for which integral is 0.95 */
-      /* 	  prob = 0.; */
-      /* 	  l=0; */
-      /* 	  while (prob<0.95){ // 95% confidence level */
-      /* 	    prob += hist[l]; */
-      /* 	    l++; */
-      /* 	  } */
-      /* 	  l--; */
-      /* 	  if (prob>0.95){ */
-      /* 	    prob -= hist[l]; */
-      /* 	    // linear regression: */
-      /* 	    threshold2 = (l-1)*dx+(0.95-prob)/(hist[l+1]-hist[l])*dx; */
-      /* 	  } */
-      /* 	  else threshold2 = l*dx; */
-
-
-      /* //\**************	 */
-
+      // computes phase correlation between node "k" and surrogate "cnt-1" of node "i" for different delays -dim/2 < delay < dim/2
+      for (cnt=0;cnt<numsur;cnt++){
+	printf("Correlation %i\t%i\t%i\n",k,i,cnt);
+      	for (delay=0;delay<=dim;delay++)    correlsurrtime[delay] = 0.+0.*I;
+	
+	// Use equation (14) Schmidt, Petkov, Richardson, Terry, "Dynamics on networks:..." for delay >= 0
+	for (delay=0;delay<=index;delay++){
+	  for (j=0;j<dim-delay;j++){
+	    correlsurrtime[delay+index] += cos(phase_node[k][j+delay]-phase_surr[i][cnt][j])+I*sin(phase_node[k][j+delay]-phase_surr[i][cnt][j]);
+	  }
+	  correlsurrtime[delay+index]/=(float)(dim-delay);
+	  correlsurrtime[delay+index] = sqrt(creal(correlsurrtime[delay+index])*creal(correlsurrtime[delay+index])+cimag(correlsurrtime[delay+index])*cimag(correlsurrtime[delay+index]));
+	}
+	// Use equation (14) Schmidt, Petkov, Richardson, Terry, "Dynamics on networks:..." for delay < 0
+	for (delay=-index;delay<0;delay++){
+	  for (j=abs(delay);j<dim;j++){
+	    correlsurrtime[delay+index] += cos(phase_node[k][j+delay]-phase_surr[i][cnt][j])+I*sin(phase_node[k][j+delay]-phase_surr[i][cnt][j]);
+	  }
+	  correlsurrtime[delay+index]/=(float)(dim-abs(delay));
+	  correlsurrtime[delay+index] = sqrt(creal(correlsurrtime[delay+index])*creal(correlsurrtime[delay+index])+cimag(correlsurrtime[delay+index])*cimag(correlsurrtime[delay+index]));
+	}
+	
+	// maximize correlsurrtime over delay:: the maximum correlation will be assigned as correlsur
+	correlsurr[cnt] = correlsurrtime[0];
+	for (delay=1;delay<=dim;delay++){
+	  if (correlsurrtime[delay] > correlsurr[cnt])    correlsurr[cnt] = correlsurrtime[delay];
+	}
+      }
+      
+      // Compute histogram of correlations between node "i" and surrogates of node "k"
+      for (l=0;l<nbin;l++) hist[l] = 0.;
+      maxx = correlsurr[0];
+      minn = correlsurr[0];
+      for (l=1;l<numsur;l++){
+	if (correlsurr[l] > maxx)   maxx = correlsurr[l];
+	if (correlsurr[l] < minn)   minn = correlsurr[l];
+      }
+      dx = (float)((maxx-minn)/nbin);
+      for (l=0;l<numsur;l++){
+	j = floor((correlsurr[l]-minn)/dx);
+	hist[j] += (float)(1./numsur/dx);
+      }
+      
+      // We compute threshold by computing the integral of hist until a bin just below 0.95, then do a linear regression to find intermediate point (correlatoin threshold) for which integral is 0.95
+      prob = 0.;
+      l=0;
+      while (prob<0.95){ // 95% confidence level
+	prob += hist[l];
+	l++;
+      }
+      l--;
+      if (prob>0.95){
+	prob -= hist[l];
+	// linear regression:
+	threshold2 = (l-1)*dx+(0.95-prob)/(hist[l+1]-hist[l])*dx;
+      }
+      else threshold2 = l*dx;
+      
+      if (threshold2>threshold) threshold=threshold2;
+      
+      //**************
+      
       // compute cross-correlations between nodes from "phase_nodes" and compare with "threshold"s
       for (delay=0;delay<=dim;delay++)    correltime[delay] = 0.+0.*I;
       for (delay=0;delay<=index;delay++){
@@ -402,7 +419,22 @@ int main(){
   }
   fclose(fp);
 
+  int G[numnodos][numnodos];
+  
+  // print associated pairs
+  fp = fopen("association_nodes.dat","w");
+  for (i=0;i<numnodos;i++){
+    for (j=0;j<numnodos;j++)
+      if(correlnodes[i][j] != 0){
+	fprintf(fp,"%i\t%i\n",i,j);
+	G[i][j] = 1;
+      }
+      else G[i][j] = 0;
+  }
+  fclose(fp);
 
+  
+  
   fftw_destroy_plan(pf);  fftw_destroy_plan(pb);
   fftw_free(data1); fftw_free(hlbrt1);
   
